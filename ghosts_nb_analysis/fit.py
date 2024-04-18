@@ -3,9 +3,12 @@
 This module provides functions to fit ghosts spots on the focal plane
 
 """
-
+import pylab as plt
 import numpy as np
 import math
+
+from ghosts_nb_analysis.utils import displayImageGhosts
+
 
 class spot_fitter(object):
     """ 
@@ -123,4 +126,79 @@ class spot_fitter(object):
         ghost_stamp = self.make_stamp(*ghost_xy, ds=ds)
         self.display_ghost_fit(ghost_stamp, params, display=display)
         return params
+
+
+###########################
+# Deprecated
+def show_ghost_fit(obs_id, ghost_stamp, params):
+    # plot ghosts stamp
+    bbox = ghost_stamp.getBBox()
+    plt.imshow(ghost_stamp.getArray(), cmap='plasma', vmin=0, vmax=20,
+               extent=[bbox.getMinX(), bbox.getMaxX(), bbox.getMaxY(), bbox.getMinY()])
+    plt.title(obs_id)
+
+    # define fit function
+    gauss2d = gaussian(*params)
+    # plot gaussian contours 
+    plt.contour(bbox.x.range(), bbox.y.range(), gauss2d(*bbox.grid()), cmap=plt.cm.copper)
+    
+    ax = plt.gca()
+    (bkg, height, x, y, width) = params
+    plt.text(0.95, 0.05, """
+    bkg : %.1f
+    height : %.1f
+    x : %.3f
+    y : %.3f
+    width : %.3f""" %(bkg, height, x, y, width),
+            fontsize=16, horizontalalignment='right',
+            verticalalignment='bottom', transform=ax.transAxes)    
+    print(f'Params (bkg, height, x, y, width): {bkg:.1f}, {height:.1f}, {x:.3f}, {y:.3f}, {width:.3f}')
+
+def fit_and_display_ghosts(obs_id, targets_list):
+    n_cols = 5
+    n_rows=4
+    fig, ax = plt.subplots(n_cols, n_rows, constrained_layout=True, figsize=(32, 32))
+    display = afwDisplay.Display(frame=fig)
+    plt.title(obs_id)
+    axs = ax.ravel()
+    spots_list = []
+    for i, spot in enumerate(targets_list):
+        fig.sca(axs[i])
+        params = fit_ghost_iter(spot)
+        ghost_stamp = make_stamp(*spot, ds=100)
+        display_ghost_fit(obs_id, ghost_stamp, params, display=display)
+        spots_list.append(params)
+    return spots_list
+
+def plot_ghosts_mosaic(targets_list):
+    from lsst.afw.display.utils import Mosaic
+    plt.rcParams["figure.figsize"] = [12, 12]
+    # image list
+    images = []
+    for i, spot in enumerate(targets_list):
+        images.append(make_stamp(*spot))
+    # Mosaic
+    m = Mosaic(gutter=30, background=0, mode='square')
+    mosaic = m.makeMosaic(images)
+    display = afwDisplay.Display(999)
+    display.scale('linear', min=0, max=20)
+    display.setImageColormap(cmap='plasma')
+    display.mtv(mosaic)
+    return m, display
+
+def fit_and_map_ghosts(obs_id, targets_list):
+    n_cols = 5
+    n_rows=4
+    fig, ax = plt.subplots(n_cols, n_rows, constrained_layout=True, figsize=(32, 32))
+    plt.title(obs_id)
+    axs = ax.ravel()
+    spots_list = []
+    for i, spot in enumerate(targets_list):
+        fig.add_subplot(axs[i])
+        fig.sca(axs[i])
+        params = fit_ghost_iter(spot)
+        ghost_stamp = make_stamp(*spot, ds=100)
+        show_ghost_fit(obs_id, ghost_stamp, params)
+        spots_list.append(params)
+    return spots_list
 
