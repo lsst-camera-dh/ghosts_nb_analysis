@@ -17,6 +17,7 @@ class spot_fitter(object):
         """ Constructor """
         self.obs_id = obs_id
         self.imageF = mosaic
+        self.fit_box_size_list = [100, 75, 50, 30]
         
     def _gaussian(self, bkg, height, center_x, center_y, width):
         """ Returns a gaussian function with the given parameters
@@ -57,7 +58,12 @@ class spot_fitter(object):
         """ Make a stamp image around a ghost position
         """
         from lsst.geom import Point2I, Box2I
-        ghost_box = Box2I(minimum=Point2I(x=x_center-ds, y=y_center-ds), maximum=Point2I(x=x_center+ds, y=y_center+ds))
+        npx, npy = self.imageF.getDimensions()
+        xmin = max(0, x_center-ds)
+        ymin = max(0, y_center-ds)
+        xmax = min(npx-1, x_center+ds)
+        ymax = min(npy-1, y_center+ds)
+        ghost_box = Box2I(minimum=Point2I(x=xmin, y=ymin), maximum=Point2I(x=xmax, y=ymax))
         ghost_stamp = self.imageF[ghost_box]   # same as no ImageOrigin argument
         return ghost_stamp
 
@@ -79,9 +85,10 @@ class spot_fitter(object):
         rc_fit = self._gaussian(*rc_params)
         return rc_params
             
-    def run_fit(self, ghost_xy, dsl=[100, 75, 50, 30]):
+    def run_fit(self, ghost_xy):
         """ Iterate on different windows size to get all fits fine
         """
+        dsl = self.fit_box_size_list
         for ds in dsl:
             ghost_stamp = self.make_stamp(*ghost_xy, ds=ds)
             bkg, height, x, y, width = self.fit_gaussian(ghost_stamp)
